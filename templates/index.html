@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Menu Nutrition Lab</title>
+  <meta name="description" content="Nutrition analysis of the Starbucks drinks and food menus with pandas and the Groq LLM.">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="#overview">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="7" width="7" height="18" rx="3.5" class="l1"/><rect x="12.5" y="7" width="7" height="18" rx="3.5" class="l2"/><rect x="22" y="7" width="7" height="18" rx="3.5" class="l3"/></svg>
+    <span>Menu Nutrition Lab</span>
+  </a>
+  <nav class="tabs" aria-label="Sections">
+    <div class="tabs-track">
+    <div class="tabs-list">
+        <a href="#overview" data-view="overview" aria-label="Overview"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Overview</span></a>
+        <a href="#charts" data-view="charts" aria-label="Charts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.2 15.9A10 10 0 1 1 8 2.8"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg><span>Charts</span></a>
+        <a href="#explore" data-view="explore" aria-label="Explore"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3H2l8 9.5V19l4 2v-8.5z"/></svg><span>Explore</span></a>
+        <a href="#summary" data-view="summary" aria-label="AI summary"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.8L20 10.7l-6.1 1.9L12 18.5l-1.9-5.9L4 10.7l6.1-1.9z"/></svg><span>AI summary</span></a>
+        <a href="#ask" data-view="ask" aria-label="Ask the menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 1 1 21 11.5z"/></svg><span>Ask the menu</span></a>
+        <a href="#data" data-view="data" aria-label="Your data"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg><span>Your data</span></a>
+    </div>
+    <div class="tabs-list tabs-active" aria-hidden="true">
+        <span data-view="overview"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Overview</span></span>
+        <span data-view="charts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.2 15.9A10 10 0 1 1 8 2.8"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg><span>Charts</span></span>
+        <span data-view="explore"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3H2l8 9.5V19l4 2v-8.5z"/></svg><span>Explore</span></span>
+        <span data-view="summary"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.8L20 10.7l-6.1 1.9L12 18.5l-1.9-5.9L4 10.7l6.1-1.9z"/></svg><span>AI summary</span></span>
+        <span data-view="ask"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 1 1 21 11.5z"/></svg><span>Ask the menu</span></span>
+        <span data-view="data"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg><span>Your data</span></span>
+    </div>
+    </div>
+  </nav>
+  <div class="topbar-end">
+    <span class="source" id="source-note">Starbucks sample data</span>
+    <button class="icon-button" id="theme-toggle" type="button" aria-label="Switch to dark mode">
+      <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+    <!-- Overview -->
+    <section class="view" id="view-overview">
+      <header class="view-head">
+        <div>
+          <h1>The menu, nutrient by nutrient</h1>
+          <p>An average drink against an average food item, each measured against an adult's daily reference intake.</p>
+        </div>
+        <ul class="legend" aria-label="Nutrient levels">
+          <li><i class="lv low"></i>Low <span>up to 10% of a day</span></li>
+          <li><i class="lv medium"></i>Medium <span>10–25%</span></li>
+          <li><i class="lv high"></i>High <span>over 25%</span></li>
+        </ul>
+      </header>
+      <div class="hero-row">
+        <article class="block drinks" id="avg-drinks"></article>
+        <article class="block food" id="avg-food"></article>
+        <article class="block green" id="ratio-card"></article>
+      </div>
+      <div class="mid-row">
+        <article class="card">
+          <div class="card-head">
+            <h2>Drinks vs food, average per item</h2>
+            <p>The stronger bar is higher</p>
+          </div>
+          <div class="duel" id="duel"></div>
+        </article>
+        <article class="block pink" id="caffeine-card"></article>
+      </div>
+      <div class="split">
+        <article class="card dataset-card drinks" id="stats-drinks"></article>
+        <article class="card dataset-card food" id="stats-food"></article>
+      </div>
+    </section>
+
+    <!-- Charts -->
+    <section class="view" id="view-charts" hidden>
+      <header class="view-head">
+        <h1>Charts</h1>
+        <div class="controls">
+          <label>Nutrient
+            <select id="chart-metric"></select>
+          </label>
+          <div class="segmented" role="radiogroup" aria-label="Ranking order">
+            <button type="button" class="on" data-order="highest">Highest</button>
+            <button type="button" data-order="lowest">Lowest</button>
+          </div>
+        </div>
+      </header>
+      <div class="chart-grid">
+        <figure class="chart wide"><figcaption id="cap-top">Top 10 items</figcaption><div id="chart-top"></div></figure>
+        <figure class="chart"><figcaption>Average macronutrients per item</figcaption><div id="chart-averages"></div></figure>
+        <figure class="chart"><figcaption>Where the calories come from</figcaption><div id="chart-macros"></div></figure>
+        <figure class="chart"><figcaption>Menu mix by category</figcaption><div id="chart-mix"></div></figure>
+        <figure class="chart"><figcaption>Items by calorie range</figcaption><div id="chart-bands"></div></figure>
+        <figure class="chart"><figcaption id="cap-distribution">Spread across items</figcaption><div id="chart-distribution"></div></figure>
+        <figure class="chart"><figcaption>Calories vs protein <small>dot size shows fat</small></figcaption><div id="chart-scatter"></div></figure>
+        <figure class="chart wide"><figcaption id="cap-categories">Average by category</figcaption><div id="chart-categories"></div></figure>
+      </div>
+    </section>
+
+    <!-- Explore -->
+    <section class="view" id="view-explore" hidden>
+      <header class="view-head">
+        <h1>Explore the menu</h1>
+        <div class="presets">
+          <button type="button" class="chip" data-preset="caffeine">Drinks with caffeine</button>
+          <button type="button" class="chip" data-preset="light-food">Food under 500 kcal</button>
+          <button type="button" class="chip" data-preset="protein">High-protein food</button>
+          <button type="button" class="chip" data-preset="clear">Clear filters</button>
+        </div>
+      </header>
+      <form class="filters" id="filters" autocomplete="off">
+        <div class="segmented" role="radiogroup" aria-label="Dataset">
+          <button type="button" class="on" data-dataset="drinks">Drinks</button>
+          <button type="button" data-dataset="food">Food</button>
+        </div>
+        <label class="grow">Search<input type="search" name="search" placeholder="Item name"></label>
+        <label>Category<select name="category"><option value="all">All</option></select></label>
+        <label class="caffeine-field">Caffeine
+          <select name="caffeine"><option value="">Any</option><option value="yes">With caffeine</option><option value="no">Without</option></select>
+        </label>
+        <label>Calories under<input type="number" name="calories_below" min="0" step="10" placeholder="e.g. 500"></label>
+        <label>Min protein (g)<input type="number" name="protein_min" min="0" step="1" placeholder="e.g. 10"></label>
+        <label>Max carbs (g)<input type="number" name="carbs_max" min="0" step="1" placeholder="e.g. 30"></label>
+      </form>
+      <div class="table-bar">
+        <p id="result-count"></p>
+        <a class="button" id="download-csv" href="#" download>Download CSV</a>
+      </div>
+      <p class="hint" id="caffeine-hint" hidden>No caffeine column in this file, so caffeine is estimated from item names (coffee, espresso, tea, Refreshers).</p>
+      <div class="table-wrap"><table id="items-table"></table></div>
+    </section>
+
+    <!-- AI summary -->
+    <section class="view" id="view-summary" hidden>
+      <header class="view-head">
+        <h1>AI nutrition summary</h1>
+        <p>Written by an LLM on Groq from statistics calculated by the app.</p>
+      </header>
+      <div class="controls">
+        <div class="segmented" role="radiogroup" aria-label="Summary focus" id="focus">
+          <button type="button" class="on" data-focus="overview">Overview</button>
+          <button type="button" data-focus="sugar">Sugar</button>
+          <button type="button" data-focus="calories">Calories</button>
+          <button type="button" data-focus="protein">Protein &amp; fat</button>
+        </div>
+        <button type="button" class="button" id="summary-btn">Write summary</button>
+      </div>
+      <article class="prose" id="summary-output">
+        <p class="empty">Pick a focus and select <strong>Write summary</strong>.</p>
+      </article>
+    </section>
+
+    <!-- Ask the menu -->
+    <section class="view" id="view-ask" hidden>
+      <header class="view-head">
+        <h1>Ask the menu</h1>
+        <p>Answers use exact figures calculated from the current data.</p>
+      </header>
+      <div class="chat" id="chat">
+        <div class="suggestions" id="suggestions">
+          <button type="button" class="chip">What’s the average caffeine content for drinks?</button>
+          <button type="button" class="chip">Which drinks have the most carbs?</button>
+          <button type="button" class="chip">Which food under 400 kcal has the most protein?</button>
+          <button type="button" class="chip">Compare average fat in drinks and food</button>
+        </div>
+      </div>
+      <form class="ask-bar" id="ask-form">
+        <input id="ask-input" maxlength="500" placeholder="Ask about calories, protein, fat, carbs…" aria-label="Your question" required>
+        <button class="button" type="submit">Ask</button>
+      </form>
+    </section>
+
+    <!-- Your data -->
+    <section class="view" id="view-data" hidden>
+      <header class="view-head">
+        <h1>Your data</h1>
+        <p>Upload your own drink or food CSV (up to {{ max_mb }} MB). Every page updates to use it.</p>
+      </header>
+      <form class="uploads" id="upload-form">
+        {% for kind in ['drinks', 'food'] %}
+        <label class="drop {{ kind }}" data-kind="{{ kind }}">
+          <input type="file" name="{{ kind }}" accept=".csv,text/csv">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>
+          <strong>{{ kind|title }} CSV</strong>
+          <span class="file-name">Drop a file here or click to choose</span>
+        </label>
+        {% endfor %}
+        <div class="upload-actions">
+          <button class="button" type="submit">Upload and analyse</button>
+          <button class="button ghost" type="button" id="reset-btn">Back to sample data</button>
+        </div>
+        <p class="form-message" id="upload-message" role="status"></p>
+      </form>
+      <h2>How the data was cleaned</h2>
+      <div class="split" id="quality"></div>
+      <p class="hint">Files need a column of item names and at least one of: {{ metrics.values()|map(attribute='label')|join(', ') }}.</p>
+    </section>
+</main>
+
+<div class="toast" id="toast" role="alert" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.7.0/plotly.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js"></script>
+<script>window.METRICS = {{ metrics|tojson }};</script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
