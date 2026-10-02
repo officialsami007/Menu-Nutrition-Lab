@@ -302,6 +302,13 @@ async function drawChart(el, fig) {
 }
 
 async function loadCharts() {
+  // Plotly comes from a CDN; if it was blocked, say so instead of leaving empty boxes.
+  if (!window.Plotly) {
+    $$(".chart-grid figure > div").forEach((el) => {
+      el.innerHTML = `<p class="empty">The chart library couldn't load. Check your internet connection and reload the page.</p>`;
+    });
+    return;
+  }
   const { metric, order } = state.chart;
   const figs = await api(`/api/charts?metric=${metric}&order=${order}&n=10`);
   const label = state.overview.metrics[metric].label.toLowerCase();
