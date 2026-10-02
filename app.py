@@ -43,6 +43,12 @@ def index():
     return render_template("index.html", metrics=METRICS, max_mb=MAX_UPLOAD_MB)
 
 
+@app.get("/api/health")
+def health():
+    """For hosting platforms: the app is up, and whether a Groq key is configured."""
+    return jsonify({"status": "ok", "groq_key": bool(os.getenv("GROQ_API_KEY", "").strip())})
+
+
 @app.get("/api/overview")
 def overview():
     """Overview page: statistics for both datasets and the drinks vs food comparison."""
