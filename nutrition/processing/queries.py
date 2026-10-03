@@ -19,6 +19,8 @@ def select(frames: dict, dataset: str, metric: str | None = None) -> dict:
         chosen = dict(frames)
     elif dataset in frames:
         chosen = {dataset: frames[dataset]}
+    elif dataset in ("drinks", "food"):
+        raise QueryError(f"No {dataset} file was provided, so there is no {dataset} data.")
     else:
         raise QueryError("Unknown dataset. Use drinks, food or both.")
     if metric:

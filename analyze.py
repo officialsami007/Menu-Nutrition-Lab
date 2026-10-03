@@ -6,6 +6,7 @@ Examples:
     python analyze.py --show food --under-calories 500  # food items under 500 calories
     python analyze.py --summary sugar                   # Groq summary (overview|sugar|calories|protein)
     python analyze.py --ask "What's the average caffeine content for drinks?"
+    python analyze.py --drinks my_drinks.csv            # analyse only your own drinks file
     python analyze.py --drinks my_drinks.csv --food my_food.csv
 """
 import argparse
@@ -68,9 +69,9 @@ def print_filtered(df: pd.DataFrame, args: argparse.Namespace) -> None:
 
 def main() -> int:
     """Parse the arguments, load both files, then run the one action asked for. Returns the exit code."""
-    parser = argparse.ArgumentParser(description="Starbucks menu nutrition analysis")
-    parser.add_argument("--drinks", default=DEFAULT_FILES["drinks"], help="drinks CSV (default: provided file)")
-    parser.add_argument("--food", default=DEFAULT_FILES["food"], help="food CSV (default: provided file)")
+    parser = argparse.ArgumentParser(description="Menu nutrition analysis")
+    parser.add_argument("--drinks", help="drinks CSV (with neither --drinks nor --food, the provided files are used)")
+    parser.add_argument("--food", help="food CSV; give just one of --drinks / --food to analyse only that file")
     parser.add_argument("--show", choices=["drinks", "food"], help="list items from one dataset after filtering")
     parser.add_argument("--caffeine", choices=["yes", "no"], help="with --show: keep drinks with/without caffeine")
     parser.add_argument("--under-calories", type=float, help="with --show: keep items below this many kcal")
@@ -80,8 +81,13 @@ def main() -> int:
     parser.add_argument("--ask", metavar="QUESTION", help="ask the LLM a question about the menu")
     args = parser.parse_args()
 
+    # Like the web app: a file you leave out is left out, not filled in from the provided files.
+    paths = {k: p for k, p in (("drinks", args.drinks), ("food", args.food)) if p} or dict(DEFAULT_FILES)
+    if args.show and args.show not in paths:
+        print(f"No {args.show} file given, so there is nothing to show. Add --{args.show} FILE.", file=sys.stderr)
+        return 1
     try:
-        loaded = {kind: load_menu(path, kind) for kind, path in (("drinks", args.drinks), ("food", args.food))}
+        loaded = {kind: load_menu(path, kind) for kind, path in paths.items()}
     except (DataLoadError, OSError) as exc:
         print(f"Could not load data: {exc}", file=sys.stderr)
         return 1
@@ -106,7 +112,10 @@ def main() -> int:
                 print_report(kind, reports[kind])
             for kind, df in frames.items():
                 print_statistics(kind, df)
-            print_comparison(frames)
+            if len(frames) == 2:
+                print_comparison(frames)
+            else:
+                print(f"\nOnly a {next(iter(frames))} file was given, so there is no drinks vs food comparison.")
     except summarization.LLMError as exc:
         print(exc, file=sys.stderr)
         return 1

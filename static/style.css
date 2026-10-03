@@ -132,6 +132,7 @@ main { width: 100%; max-width: 1320px; margin: 0 auto; padding: 36px clamp(16px,
 
 /* Overview blocks */
 .hero-row { display: grid; grid-template-columns: 1fr 1fr 0.8fr; gap: 24px; margin-bottom: 24px; }
+.mid-row.solo { grid-template-columns: minmax(0, 1fr); }
 .mid-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; margin-bottom: 24px; }
 .block { padding: 24px; color: var(--on-block); display: flex; flex-direction: column; gap: 14px; }
 .block.drinks { background: var(--drinks); }
@@ -237,6 +238,12 @@ input:focus, select:focus { outline: none; box-shadow: var(--shadow-sm); backgro
 }
 .button:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--edge); }
 .button:disabled { opacity: 0.55; cursor: progress; }
+.chip:disabled, .segmented button:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+.missing { display: grid; place-content: center; gap: 4px; min-height: 160px; padding: 8px; text-align: center; color: var(--ink-2); }
+.missing p { margin: 0; }
+.missing strong { color: var(--ink); font-size: 1.05rem; font-weight: 900; }
+.missing a { color: inherit; font-weight: 800; }
+.block .missing, .block .missing strong { color: #111; }
 .button.ghost { background: var(--surface); color: var(--ink); }
 .chip {
   min-height: 38px; padding: 6px 14px; border: var(--line-thin); border-radius: var(--r-md); background: var(--surface); color: var(--ink);
@@ -305,7 +312,7 @@ input:focus, select:focus { outline: none; box-shadow: var(--shadow-sm); backgro
 .prose th, .prose td, .msg th, .msg td { border-bottom: var(--line-thin); padding: 8px 12px; text-align: left; }
 .prose th, .msg th { font-weight: 900; }
 .prose hr { border: 0; border-top: var(--line); margin: 22px 0; }
-.prose.streaming > :last-child::after { content: ""; display: inline-block; width: 10px; height: 1.1em; margin-left: 4px; vertical-align: -3px; background: var(--pink); border: 2px solid var(--edge); animation: blink 1s steps(2) infinite; }
+.prose.streaming > :last-child::after, .msg.streaming > :last-child::after { content: ""; display: inline-block; width: 10px; height: 1.1em; margin-left: 4px; vertical-align: -3px; background: var(--pink); border: 2px solid var(--edge); animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 .empty-state { display: grid; justify-items: start; gap: 6px; min-height: 160px; align-content: center; }
 .empty-state p { margin: 0; color: var(--ink-2); }
@@ -404,6 +411,7 @@ input:focus, select:focus { outline: none; box-shadow: var(--shadow-sm); backgro
 #view-data h2 { margin: 40px 0 16px; font-size: 1.4rem; }
 .quality { padding: 22px 24px; }
 .quality h3 { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; }
+.quality h3 .button { margin-left: auto; padding: 6px 12px; font-size: 0.85rem; }
 .quality h3 i { width: 16px; height: 16px; border: 2px solid var(--edge); border-radius: 4px; background: var(--drinks); }
 .quality.food h3 i { background: var(--food); }
 .quality .file { color: var(--ink-3); font-size: 0.85rem; font-weight: 600; margin: 4px 0 14px; word-break: break-all; }
@@ -424,6 +432,7 @@ input:focus, select:focus { outline: none; box-shadow: var(--shadow-sm); backgro
   .source { display: none; }
 }
 @media (max-width: 900px) {
+  .chat-hint { display: none; }
   .topbar { grid-template-columns: auto 1fr; }
   .tabs { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; }
   .topbar-end { justify-self: end; }

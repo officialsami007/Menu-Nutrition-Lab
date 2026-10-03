@@ -53,3 +53,22 @@ def test_to_number(value, expected):
 def test_unusable_files_raise_clear_errors(raw, message):
     with pytest.raises(DataLoadError, match=message):
         load_csv(raw, "test")
+
+
+def test_a_file_of_the_other_kind_is_recognised():
+    from nutrition.loading import wrong_kind
+    food = ["Big Mac", "Egg McMuffin", "Medium French Fries", "Chicken McNuggets (6 pc)", "Apple Pie"]
+    drinks = ["Coca-Cola (Medium)", "Iced Coffee", "Vanilla Shake", "Orange Juice", "Sweet Tea"]
+    assert "food file" in wrong_kind(food, "drinks")
+    assert "drinks file" in wrong_kind(drinks, "food")
+    assert wrong_kind(food, "food") is None and wrong_kind(drinks, "drinks") is None
+    # A drinks menu with a few food items is still a drinks menu.
+    assert wrong_kind(drinks + ["Lemon Loaf", "Cake Pop"], "drinks") is None
+
+
+def test_provided_files_pass_the_kind_check_only_in_their_own_box():
+    from nutrition.loading import wrong_kind
+    drinks, _ = load_csv(DEFAULT_FILES["drinks"], "drinks")
+    food, _ = load_csv(DEFAULT_FILES["food"], "food")
+    assert wrong_kind(drinks["name"], "drinks") is None and wrong_kind(food["name"], "food") is None
+    assert wrong_kind(drinks["name"], "food") and wrong_kind(food["name"], "drinks")

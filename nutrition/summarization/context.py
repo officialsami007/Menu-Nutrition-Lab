@@ -7,9 +7,11 @@ import json
 from ..config import METRICS
 from ..processing import category_means, compare, describe, top_items
 
-SYSTEM_RULES = """You are a nutrition analyst for the Starbucks menu data supplied below.
+SYSTEM_RULES = """You are a nutrition analyst for the menu data supplied below.
 Rules:
 - Use only the supplied data and tool results. Never invent items or numbers.
+- DATA only contains the drinks and/or food files that were provided. If one is missing, say once that it was not
+  provided, analyse only the other, and do not compare drinks with food or guess at the missing one.
 - If a nutrient is not in the data, say so plainly. For sugar, use carbs as the closest measure and say so;
   carbs include starch, so call them carbs, not sugar or sweetness.
 - If caffeine is "estimated from names", there are no milligram values, so drinks cannot be averaged

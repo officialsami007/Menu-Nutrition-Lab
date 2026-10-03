@@ -43,7 +43,7 @@ Render deploys it on every push. Set `GROQ_API_KEY` and `FLASK_SECRET_KEY` in Re
 | 🔎 | **Explore** | Filter (e.g. *drinks with caffeine*, *food under 500 kcal*), sort, download CSV |
 | ✍️ | **AI summary** | A Groq-written summary, focused on sugar, calories or protein |
 | 💬 | **Ask the menu** | A ChatGPT-style chat: ask in plain English, answers stream in, chats are saved, and the calculation is shown |
-| 📁 | **Your data** | Upload your own CSV and see exactly how it was cleaned |
+| 📁 | **Your data** | Upload a drinks CSV, a food CSV or both, and see exactly how each was cleaned |
 
 <table>
 <tr>
@@ -122,6 +122,14 @@ tests/                  43 tests, one file per part
 
 If you upload a file with real `Sugar` or `Caffeine` columns, the app uses them automatically.
 
+**Uploading your own files**
+- **One file is analysed alone.** Upload only drinks and the app shows only drinks: no comparison, and nothing
+  borrowed from the sample food file. Upload the other file later to add it, or remove either one.
+- **Files in the wrong box are caught.** A food menu dropped in the Drinks box is rejected with a message
+  ("This looks like a food file…"), judged from the item names.
+- **Nothing goes stale.** A new upload clears saved chats and summaries, and every page reloads. If the data
+  changes in another tab or the server restarts, the page notices and refreshes itself.
+
 ---
 
 ## Design decisions and trade-offs
@@ -130,7 +138,7 @@ If you upload a file with real `Sugar` or `Caffeine` columns, the app uses them 
 |---|---|---|
 | **Tool calling** instead of sending raw rows to the LLM | Exact numbers, small prompts (fits Groq's free tier) | One extra API round trip per question |
 | **Flask + plain JavaScript** | One command to run, no build step | Less structure than a front-end framework |
-| **Uploads kept in memory, per browser session** | Private to each visitor, no database | Lost when the server restarts |
+| **Uploads kept in memory, per browser session** | Private to each visitor, no database | Lost when the server restarts (the page notices and says so) |
 | **Charts built in Python with Plotly** | One charting library, interactive in the browser | Plotly.js loads from a CDN |
 | **Bold, high-contrast UI** | Readable on a projector in a demo | Louder than a typical dashboard |
 
@@ -144,6 +152,7 @@ python analyze.py --show drinks --caffeine yes       # 62 of 74 drinks
 python analyze.py --show food --under-calories 500   # 99 of 113 food items
 python analyze.py --summary sugar                    # overview | sugar | calories | protein
 python analyze.py --ask "Which drinks have the most protein?"
+python analyze.py --drinks my_drinks.csv             # only your file, no comparison
 ```
 
 ---

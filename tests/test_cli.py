@@ -29,3 +29,12 @@ def test_bad_file_exits_with_message(monkeypatch, capsys, tmp_path):
     code, out = run(monkeypatch, capsys, "--drinks", str(bad))
     assert code == 1 and "Could not load data" in out.err
 
+
+def test_one_file_is_analysed_alone(monkeypatch, capsys, tmp_path):
+    drinks = tmp_path / "drinks.csv"
+    drinks.write_text("Item,Calories,Protein\nIced Coffee,60,1\nVanilla Shake,580,13\n")
+    code, out = run(monkeypatch, capsys, "--drinks", str(drinks))
+    assert code == 0 and "Drinks: 2 items" in out.out
+    assert "Food:" not in out.out and "no drinks vs food comparison" in out.out
+    code, out = run(monkeypatch, capsys, "--drinks", str(drinks), "--show", "food")
+    assert code == 1 and "No food file" in out.err

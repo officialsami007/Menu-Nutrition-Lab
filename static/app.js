@@ -12,6 +12,7 @@ const state = {
   focus: "overview",
   summaries: {},  // "focus:version" -> markdown, so switching focus doesn't call the LLM again
   view: "overview",
+  serverVersion: null, // the X-Data-Version of the data the page is showing
 };
 
 // Helpers
@@ -19,6 +20,7 @@ const state = {
 // fetch() wrapper: parses JSON or text and turns API errors into thrown Errors with the server's message.
 async function api(url, options = {}) {
   const res = await fetch(url, options);
+  noteVersion(res, Boolean(options.method && options.method !== "GET"));
   const isJson = res.headers.get("content-type")?.includes("json");
   const body = isJson ? await res.json() : await res.text();
   if (!res.ok) {
@@ -125,10 +127,25 @@ function moveTabIndicator(name = state.view) {
 
 // Overview
 
+// Whether this session has a drinks / food file. After uploading only one, the other is simply absent.
+const hasData = (kind) => Boolean(state.overview?.datasets[kind]);
+
+function sourceLabel() {
+  const { using_defaults: defaults } = state.overview;
+  if (defaults) return "Starbucks sample data";
+  return hasData("drinks") && hasData("food") ? "Your uploaded data" : `Your ${hasData("drinks") ? "drinks" : "food"} file only`;
+}
+
+// Stands in for any card or chart that needs a file the user hasn't uploaded.
+function missingNote(kind, what = "") {
+  return `<div class="missing"><p><strong>No ${kind} file uploaded</strong></p>
+    <p>${what || `Upload a ${kind} CSV on the <a href="#data">Your data</a> page to see this.`}</p></div>`;
+}
+
 async function loadOverview() {
   state.overview = await api("/api/overview");
   const note = $("#source-note");
-  note.textContent = state.overview.using_defaults ? "Starbucks sample data" : "Your uploaded data";
+  note.textContent = sourceLabel();
   note.classList.toggle("custom", !state.overview.using_defaults);
   renderAverage("drinks");
   renderAverage("food");
@@ -137,6 +154,21 @@ async function loadOverview() {
   renderDuel();
   renderDatasetCard("drinks");
   renderDatasetCard("food");
+  applyAvailability();
+}
+
+// Things that need a particular file are switched off when it is missing.
+function applyAvailability() {
+  $$("#suggestions [data-needs]").forEach((chip) => {
+    const needs = chip.dataset.needs === "both" ? ["drinks", "food"] : [chip.dataset.needs];
+    chip.hidden = !needs.every(hasData);
+  });
+  $$("#filters [data-dataset], [data-preset][data-needs]").forEach((el) => {
+    const kind = el.dataset.dataset || el.dataset.needs;
+    el.disabled = !hasData(kind);
+    el.title = hasData(kind) ? "" : `No ${kind} file uploaded`;
+  });
+  if (!hasData(state.explore.dataset)) setDataset(hasData("drinks") ? "drinks" : "food");
 }
 
 const LEVEL_WORD = { low: "Low", medium: "Medium", high: "High" };
@@ -154,6 +186,10 @@ const reveal = (el) => requestAnimationFrame(() => requestAnimationFrame(() => e
 
 // Average item as a colour block: giant kcal number, share of a day, and one chip per nutrient.
 function renderAverage(kind) {
+  if (!hasData(kind)) {
+    $(`#avg-${kind}`).innerHTML = missingNote(kind);
+    return;
+  }
   const { stats } = state.overview.datasets[kind];
   const pm = stats.per_metric;
   const order = ["fat", stats.sweetness_metric, "sodium", "caffeine", "protein", "fiber"]
@@ -199,10 +235,12 @@ function renderRatio() {
 }
 
 function renderCaffeine() {
+  const el = $("#caffeine-card");
+  el.hidden = !hasData("drinks");
+  if (!hasData("drinks")) return;
   const { stats } = state.overview.datasets.drinks;
   const share = stats.items ? stats.caffeinated_items / stats.items : 0;
   const estimated = stats.caffeine_source !== "column";
-  const el = $("#caffeine-card");
   el.innerHTML = `
     <h2>Caffeinated drinks</h2>
     <div class="big"><span data-value="${stats.caffeinated_items}" data-digits="0">0</span><small>/ ${stats.items}</small></div>
@@ -222,6 +260,11 @@ function renderCaffeine() {
 function renderDuel() {
   const rows = state.overview.comparison;
   const el = $("#duel");
+  // With one file there is nothing to compare, so the whole card goes instead of sitting empty.
+  const card = el.closest(".card");
+  card.hidden = !rows.length;
+  $(".mid-row").classList.toggle("solo", !rows.length);
+  if (!rows.length) return;
   el.innerHTML = `
     <div class="duel-legend"><span class="d">Drinks</span><span class="f">Food</span></div>
     ${rows.map((r) => {
@@ -247,6 +290,10 @@ function duelNote(rows) {
 }
 
 function renderDatasetCard(kind) {
+  if (!hasData(kind)) {
+    $(`#stats-${kind}`).innerHTML = missingNote(kind);
+    return;
+  }
   const { stats } = state.overview.datasets[kind];
   const pm = stats.per_metric;
   const leaders = ["calories", stats.sweetness_metric, "protein"].filter((m, i, a) => m && pm[m] && a.indexOf(m) === i);
@@ -302,13 +349,17 @@ async function drawChart(el, fig) {
 
 async function loadCharts() {
   const { metric, order } = state.chart;
+  // Wipe the old figures first, so a failed request can never leave charts from the previous data on screen.
+  $$(".chart > div").forEach((el) => el.data && Plotly.purge(el));
   const figs = await api(`/api/charts?metric=${metric}&order=${order}&n=10`);
   const label = state.overview.metrics[metric].label.toLowerCase();
   $("#cap-top").textContent = `${order === "highest" ? "Highest" : "Lowest"} ${label} items`;
   $("#cap-distribution").textContent = `Spread of ${label} across items`;
   $("#cap-categories").textContent = `Average ${label} by category`;
   for (const [name, fig] of Object.entries(figs)) {
-    await drawChart($(`#chart-${name}`), fig);
+    const chart = $(`#chart-${name}`);
+    chart.closest("figure").hidden = !fig; // e.g. drinks-vs-food needs both files
+    if (fig) await drawChart(chart, fig);
   }
 }
 
@@ -399,6 +450,7 @@ function initExplore() {
   $$("#filters [data-dataset]").forEach((b) => b.addEventListener("click", () => { setDataset(b.dataset.dataset); refresh(); }));
   $$("[data-preset]").forEach((b) => b.addEventListener("click", () => {
     const preset = PRESETS[b.dataset.preset];
+    if (preset.dataset && !hasData(preset.dataset)) return;
     $("#filters").reset();
     if (preset.dataset) setDataset(preset.dataset); else setCategories();
     Object.entries(preset).forEach(([k, v]) => { const f = $(`#filters [name=${k}]`); if (f) f.value = v; });
@@ -805,6 +857,10 @@ function initAsk() {
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 function qualityCard(kind, r) {
+  if (!r) {
+    return `<article class="quality ${kind}"><h3><i></i>${kind === "drinks" ? "Drinks" : "Food"}</h3>
+      <p class="file">Not uploaded</p><ul><li>No ${kind} file was uploaded, so nothing about ${kind} is analysed.</li></ul></article>`;
+  }
   const all = Object.keys(state.overview.metrics);
   const missing = all.filter((m) => !r.metrics.includes(m)).map((m) => state.overview.metrics[m].label);
   const items = [
@@ -818,19 +874,51 @@ function qualityCard(kind, r) {
     missing.length && `Not in file: ${missing.join(", ")}`,
     r.ignored_columns.length && `Ignored columns: ${r.ignored_columns.map(escapeHtml).join(", ")}`,
   ].filter(Boolean);
-  return `<article class="quality ${kind}"><h3><i></i>${kind === "drinks" ? "Drinks" : "Food"}</h3>
+  const remove = state.overview.using_defaults ? ""
+    : `<button type="button" class="button ghost" data-remove="${kind}">Remove ${kind} file</button>`;
+  return `<article class="quality ${kind}"><h3><i></i>${kind === "drinks" ? "Drinks" : "Food"}${remove}</h3>
     <p class="file">${escapeHtml(r.filename)}</p><ul>${items.map((i) => `<li>${i}</li>`).join("")}</ul></article>`;
 }
 
 async function loadData() {
   await ensureOverview();
-  $("#quality").innerHTML = ["drinks", "food"].map((k) => qualityCard(k, state.overview.datasets[k].report)).join("");
+  $("#quality").innerHTML = ["drinks", "food"].map((k) => qualityCard(k, state.overview.datasets[k]?.report)).join("");
 }
+
+// Each API answer says which version of the data it came from. Uploads, removals and resets (POSTs) change it
+// on purpose. Any other change means the data moved under this page: an upload in another tab, or a server
+// restart that dropped an upload. Then every view is reloaded so nothing shows the old data.
+function noteVersion(res, expected) {
+  const version = res.headers.get("X-Data-Version");
+  if (!version) return;
+  const stale = !expected && state.serverVersion !== null && version !== state.serverVersion;
+  state.serverVersion = version;
+  if (stale) dataChangedElsewhere(version);
+}
+
+async function dataChangedElsewhere(version) {
+  if (state.refreshing) return;
+  state.refreshing = true;
+  try {
+    await dataChanged(version === "sample"
+      ? "Your upload is gone (the app was restarted), so you're back on the Starbucks sample data."
+      : "The data was changed in another tab, so every page was refreshed.");
+    const loader = loaders[state.view];
+    if (loader && state.view !== "data") { state.loaded[state.view] = state.dataVersion; await loader(); }
+  } finally {
+    state.refreshing = false;
+  }
+}
+
+// Called on every view switch and when the window regains focus; cheap, and catches stale pages.
+const checkVersion = () => api("/api/version").catch(() => {});
 
 async function dataChanged(message) {
   state.dataVersion += 1;
   state.loaded = {};
-  startChat(); // saved chats were about the old data, so begin a fresh one
+  chats.list = []; // saved chats were about the old data, so clear them and begin a fresh one
+  saveChats();
+  startChat();
   state.overview = null;
   await loadData();
   state.loaded.data = state.dataVersion;
@@ -843,14 +931,40 @@ function initUpload() {
   $$(".drop", form).forEach((zone) => {
     const input = $("input", zone);
     const name = $(".file-name", zone);
+    const clear = $(".clear-file", zone);
     const update = () => {
       zone.classList.toggle("ready", input.files.length > 0);
       name.textContent = input.files[0]?.name || "Drop a file here or click to choose";
+      clear.hidden = input.files.length === 0;
     };
     input.addEventListener("change", update);
-    ["dragenter", "dragover"].forEach((ev) => zone.addEventListener(ev, () => zone.classList.add("over")));
-    ["dragleave", "drop"].forEach((ev) => zone.addEventListener(ev, () => zone.classList.remove("over")));
+    // Un-choose a file before uploading. preventDefault stops the click reaching the label, which would open the picker.
+    clear.addEventListener("click", (e) => {
+      e.preventDefault();
+      input.value = "";
+      update();
+      msg.className = "form-message";
+      msg.textContent = "";
+    });
+    // Take over the drop ourselves: otherwise a file dropped anywhere but on the input is downloaded by the browser.
+    ["dragenter", "dragover"].forEach((ev) => zone.addEventListener(ev, (e) => {
+      e.preventDefault();
+      zone.classList.add("over");
+    }));
+    zone.addEventListener("dragleave", (e) => {
+      if (!zone.contains(e.relatedTarget)) zone.classList.remove("over");
+    });
+    zone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      zone.classList.remove("over");
+      if (e.dataTransfer?.files.length) {
+        input.files = e.dataTransfer.files;
+        update();
+      }
+    });
   });
+  // A file dropped outside a box should do nothing, not navigate away or download.
+  ["dragover", "drop"].forEach((ev) => window.addEventListener(ev, (e) => e.preventDefault()));
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -867,16 +981,41 @@ function initUpload() {
     try {
       const res = await api("/api/upload", { method: "POST", body: data });
       form.reset();
-      $$(".drop", form).forEach((z) => { z.classList.remove("ready"); $(".file-name", z).textContent = "Drop a file here or click to choose"; });
+      $$(".drop", form).forEach((z) => {
+        z.classList.remove("ready");
+        $(".file-name", z).textContent = "Drop a file here or click to choose";
+        $(".clear-file", z).hidden = true;
+      });
       msg.className = "form-message good";
-      msg.textContent = `Loaded ${Object.keys(res.loaded).join(" and ")}. Every page now uses your data.`;
+      const kinds = Object.keys(res.loaded);
+      const missing = ["drinks", "food"].filter((k) => !kinds.includes(k));
       await dataChanged("Data updated");
+      msg.textContent = `Loaded ${kinds.join(" and ")}. Every page now uses your data.`
+        + (missing.length && !state.overview.datasets[missing[0]] ? ` No ${missing[0]} file was uploaded, so ${missing[0]} and the drinks-vs-food comparison are left out.` : "");
     } catch (err) {
       msg.className = "form-message bad";
       msg.innerHTML = escapeHtml(err.message) + (err.details
         ? "<br>" + Object.entries(err.details).map(([k, v]) => `${k}: ${escapeHtml(v)}`).join("<br>") : "");
     } finally {
       btn.disabled = false;
+    }
+  });
+
+  // Remove one uploaded file and keep the other. Removing the only one goes back to the sample data.
+  $("#quality").addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-remove]");
+    if (!btn) return;
+    btn.disabled = true;
+    try {
+      const res = await api("/api/remove", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dataset: btn.dataset.remove }),
+      });
+      msg.className = "form-message";
+      msg.textContent = "";
+      await dataChanged(res.using_defaults ? "Back to the Starbucks sample data" : `Removed the ${btn.dataset.remove} file`);
+    } catch (err) {
+      btn.disabled = false;
+      toast(err.message);
     }
   });
 
@@ -889,6 +1028,9 @@ function initUpload() {
 }
 
 loaders.data = loadData;
+// These views read the overview too (the source label, which files exist), even when it isn't their first view.
+loaders.ask = () => ensureOverview();
+loaders.summary = () => ensureOverview();
 
 // Start
 
@@ -903,7 +1045,9 @@ window.addEventListener("DOMContentLoaded", () => {
   initSummary();
   initAsk();
   initUpload();
-  window.addEventListener("hashchange", () => showView());
+  window.addEventListener("hashchange", () => { showView(); checkVersion(); });
+  document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && checkVersion());
+  window.addEventListener("focus", checkVersion);
   window.addEventListener("resize", () => moveTabIndicator());
   document.fonts?.ready.then(() => moveTabIndicator());
   // Every loader goes through here so failures show a message instead of failing silently.

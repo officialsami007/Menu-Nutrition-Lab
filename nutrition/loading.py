@@ -92,6 +92,32 @@ def _map_columns(columns) -> tuple[dict, list]:
     return mapping, ignored
 
 
+# Words that mark an item name as a drink or as food. Used only to spot a file put in the wrong box,
+# so they are broad (any menu, not just Starbucks) and a name may match both.
+DRINK_WORDS = (r"coffee|latte|espresso|mocha|macchiato|cappuccino|americano|frapp|\btea\b|chai|matcha|juice|lemonade"
+               r"|smoothie|shake|soda|cola|coke|sprite|fanta|pepper|water|\bmilk\b|slush|refresher|cold brew|drink|beverage")
+FOOD_WORDS = (r"burger|big mac|sandwich|wrap|panini|nugget|fries|chicken|fish|wings?\b|salad|muffin|biscuit|bagel|croissant"
+              r"|burrito|hotcake|pancake|hash brown|cookie|\bpie\b|sundae|\bcone\b|donut|doughnut|cake|bread|loaf|\broll\b"
+              r"|oatmeal|parfait|yogurt|\begg|sausage|bacon|sauce|ketchup|\bbar\b|danish|scone|brownie|bowl|\bbox\b")
+
+
+def wrong_kind(names, kind: str) -> str | None:
+    """A message when a file put in the `kind` box is clearly the other kind of menu, else None.
+
+    'Clearly' means at least 40% of names look like the other kind and they outnumber names that look
+    like `kind` by more than 2 to 1, so a drinks file with a few cake pops or a lemon loaf is not rejected.
+    """
+    names = [str(n).lower() for n in names]
+    drinks = sum(bool(re.search(DRINK_WORDS, n)) for n in names)
+    food = sum(bool(re.search(FOOD_WORDS, n)) for n in names)
+    mine, other = (drinks, food) if kind == "drinks" else (food, drinks)
+    other_kind = "food" if kind == "drinks" else "drinks"
+    if names and other >= 0.4 * len(names) and other > 2 * mine:
+        return (f"This looks like a {other_kind} file, not {kind} ({other} of {len(names)} items have {other_kind} names). "
+                f"Use it as the {other_kind} file instead.")
+    return None
+
+
 def load_csv(source, label: str = "dataset") -> tuple[pd.DataFrame, dict]:
     """Load a CSV from a path, bytes or file-like object.
 

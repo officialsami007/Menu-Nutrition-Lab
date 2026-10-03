@@ -7,7 +7,9 @@ import pytest
 
 import app as web
 from nutrition import load_default_menu
-from nutrition.summarization import answer_question, client, questions
+from nutrition.processing import queries
+from nutrition.summarization import answer_question, client, questions, summary
+from nutrition.summarization.context import facts
 
 
 @pytest.fixture
@@ -254,3 +256,13 @@ def test_list_tool_shows_the_nutrient_it_was_filtered_on(menu):
     assert result["food"]["total"] == 2 and all("(protein: " in item for item in result["food"]["items"])
 
 
+
+def test_one_dataset_has_nothing_to_compare_and_missing_one_is_an_error(menu):
+    drinks = menu["drinks"]
+    pack = json.loads(facts({"drinks": drinks}, {"drinks": {"rows_read": len(drinks), "rows_kept": len(drinks)}}))
+    assert "drinks compared with food" not in pack and "food" not in pack
+    assert "do not compare" in summary._sections({"drinks": drinks})
+    assert "Drinks vs food" in summary._sections(menu)
+    result = questions.run_tool("aggregate", {"dataset": "food", "metric": "calories"}, {"drinks": drinks})
+    assert "no food file" in result["error"].lower()
+    assert queries.rank({"drinks": drinks}, "both", "calories")  # "both" quietly means whatever exists

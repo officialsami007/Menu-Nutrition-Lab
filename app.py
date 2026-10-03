@@ -18,6 +18,7 @@ from nutrition.store import DataStore
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(16)
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # browsers revalidate static files, so edits to the JS/CSS always show up
 
 store = DataStore(load_default_menu())  # the provided CSVs are loaded once, at start-up
 
@@ -38,6 +39,22 @@ def error(message, status=400):
     return jsonify({"error": message}), status
 
 
+@app.after_request
+def stamp_data_version(response):
+    """Every API answer says which version of the data it came from and must not be cached,
+    so an open page can tell when the data changed elsewhere (another tab, a server restart)."""
+    if request.path.startswith("/api/"):
+        response.headers["X-Data-Version"] = store.version(session_id())
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/api/version")
+def version():
+    """A cheap check the page makes when you switch views or come back to the window."""
+    return jsonify({"version": store.version(session_id())})
+
+
 @app.get("/")
 def index():
     """The single page; the six views inside it are switched in the browser."""
@@ -49,15 +66,16 @@ def overview():
     """Overview page: statistics for both datasets and the drinks vs food comparison."""
     frames, reports = current_data()
     return jsonify({
+        # Only the datasets this session has: a file that wasn't uploaded is simply absent.
         "datasets": {
             kind: {
                 "stats": processing.describe(frames[kind]),
                 "report": reports[kind],
                 "categories": sorted(frames[kind]["category"].unique().tolist()),
             }
-            for kind in DATASETS
+            for kind in DATASETS if kind in frames
         },
-        "comparison": processing.compare(frames["drinks"], frames["food"]),
+        "comparison": processing.compare(frames["drinks"], frames["food"]) if len(frames) == len(DATASETS) else [],
         "metrics": METRICS,
         "reference_intake": REFERENCE_INTAKE,
         "levels": {"thresholds": LEVEL_THRESHOLDS, "limit": LIMIT_NUTRIENTS},
@@ -76,12 +94,23 @@ def charts():
     return jsonify(visualization.all_charts(frames, metric, n, lowest=request.args.get("order") == "lowest"))
 
 
+class MissingDataset(Exception):
+    """The browser asked for a drinks or food file this session hasn't uploaded."""
+
+
+@app.errorhandler(MissingDataset)
+def missing_dataset(exc):
+    return error(f"No {exc.args[0]} file has been uploaded.")
+
+
 def filtered_items():
     """The dataset named in ?dataset=, filtered and sorted by the other query parameters."""
     frames, _ = current_data()
     kind = request.args.get("dataset", "drinks")
+    if kind not in DATASETS:
+        return None
     if kind not in frames:
-        return kind, None, None
+        raise MissingDataset(kind)
     rows = processing.apply_filters(frames[kind], request.args)
     return kind, frames[kind], processing.sort_rows(rows, request.args.get("sort"), request.args.get("desc") == "1")
 
@@ -89,9 +118,10 @@ def filtered_items():
 @app.get("/api/items")
 def items():
     """Explore page: the filtered, sorted rows for the table."""
-    kind, df, rows = filtered_items()
-    if df is None:
+    result = filtered_items()
+    if result is None:
         return error("Choose drinks or food.")
+    kind, df, rows = result
     return jsonify({
         "dataset": kind,
         "total": len(df),
@@ -105,29 +135,33 @@ def items():
 @app.get("/api/items.csv")
 def items_csv():
     """Explore page: the same filtered rows as a CSV download."""
-    kind, df, rows = filtered_items()
-    if df is None:
+    result = filtered_items()
+    if result is None:
         return error("Choose drinks or food.")
+    kind, _, rows = result
     buffer = io.StringIO()
     rows.to_csv(buffer, index=False)
     return Response(buffer.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition": f"attachment; filename=starbucks-{kind}-filtered.csv"})
+                    headers={"Content-Disposition": f"attachment; filename=menu-{kind}-filtered.csv"})
 
 
 @app.post("/api/upload")
 def upload():
-    """Your data page: replace the drinks and/or food data for this browser session."""
+    """Your data page: use the uploaded drinks and/or food file(s) for this browser session.
+
+    A dataset that isn't uploaded is left out, not filled in from the sample files."""
     files = {k: request.files[k] for k in DATASETS if k in request.files and request.files[k].filename}
     if not files:
         return error("Choose at least one CSV file to upload.")
 
     loaded, problems = {}, {}
     for kind, file in files.items():
-        if not file.filename.lower().endswith(".csv"):
-            problems[kind] = f"{file.filename} isn't a .csv file."
+        filename = file.filename or ""
+        if not filename.lower().endswith(".csv"):
+            problems[kind] = f"{filename} isn't a .csv file."
             continue
         try:
-            loaded[kind] = load_menu(file.stream, kind, file.filename)
+            loaded[kind] = load_menu(file.stream, kind, filename)
         except DataLoadError as exc:
             problems[kind] = str(exc)
 
@@ -136,6 +170,17 @@ def upload():
         return jsonify({"error": "Some files couldn't be used.", "problems": problems}), 400
     store.replace(session_id(), loaded)
     return jsonify({"loaded": {k: report for k, (_, report) in loaded.items()}})
+
+
+@app.post("/api/remove")
+def remove():
+    """Your data page: drop one uploaded file and keep the other."""
+    kind = (request.get_json(silent=True) or {}).get("dataset")
+    if kind not in DATASETS:
+        return error("Choose drinks or food.")
+    if not store.remove(session_id(), kind):
+        return error(f"There is no uploaded {kind} file to remove.")
+    return jsonify({"ok": True, "using_defaults": store.using_defaults(session_id())})
 
 
 @app.post("/api/reset")

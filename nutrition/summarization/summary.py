@@ -10,6 +10,14 @@ FOCUS_PROMPTS = {
 }
 
 
+def _sections(frames: dict) -> str:
+    """The section list for the prompt; with one dataset there is nothing to compare."""
+    if {"drinks", "food"} <= set(frames):
+        return "'Key takeaways' (3 bullets), 'Drinks', 'Food', 'Drinks vs food', 'Lighter choices'"
+    only = "Drinks" if "drinks" in frames else "Food"
+    return f"'Key takeaways' (3 bullets), '{only}', 'Lighter choices' (only the {only.lower()} file was provided, so do not compare)"
+
+
 def stream_summary(frames: dict, reports: dict, focus: str = "overview"):
     """Return a generator of text chunks. Raises LLMError before streaming if setup fails."""
     groq_client = client.get_client()
@@ -18,7 +26,7 @@ def stream_summary(frames: dict, reports: dict, focus: str = "overview"):
         {"role": "user", "content": (
             f"{FOCUS_PROMPTS.get(focus, FOCUS_PROMPTS['overview'])}\n"
             "Write a nutrition summary of at most 300 words with these sections: "
-            "'Key takeaways' (3 bullets), 'Drinks', 'Food', 'Drinks vs food', 'Lighter choices'. "
+            f"{_sections(frames)}. "
             "Cite specific items with their numbers."
         )},
     ]

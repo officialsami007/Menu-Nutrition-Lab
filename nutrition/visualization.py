@@ -180,7 +180,7 @@ def category_chart(frames: dict, metric: str = "calories") -> dict:
 def all_charts(frames: dict, metric: str, n: int, lowest: bool) -> dict:
     """Every chart on the Charts page. `metric` drives the ranking, spread and category charts."""
     return {
-        "averages": averages_chart(frames["drinks"], frames["food"]),
+        "averages": averages_chart(frames["drinks"], frames["food"]) if {"drinks", "food"} <= set(frames) else None,
         "top": top_items_chart(frames, metric, n, lowest),
         "distribution": distribution_chart(frames, metric),
         "macros": macro_split_chart(frames),

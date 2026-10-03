@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Menu Nutrition Lab</title>
-  <meta name="description" content="Nutrition analysis of the Starbucks drinks and food menus with pandas and the Groq LLM.">
+  <meta name="description" content="Nutrition analysis of drinks and food menus with pandas and the Groq LLM.">
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -113,9 +113,9 @@
       <header class="view-head">
         <h1>Explore the menu</h1>
         <div class="presets">
-          <button type="button" class="chip" data-preset="caffeine">Drinks with caffeine</button>
-          <button type="button" class="chip" data-preset="light-food">Food under 500 kcal</button>
-          <button type="button" class="chip" data-preset="protein">High-protein food</button>
+          <button type="button" class="chip" data-preset="caffeine" data-needs="drinks">Drinks with caffeine</button>
+          <button type="button" class="chip" data-preset="light-food" data-needs="food">Food under 500 kcal</button>
+          <button type="button" class="chip" data-preset="protein" data-needs="food">High-protein food</button>
           <button type="button" class="chip" data-preset="clear">Clear filters</button>
         </div>
       </header>
@@ -176,10 +176,10 @@
           <div class="chat" id="chat">
             <div class="chat-messages" id="messages" role="log" aria-live="polite"></div>
             <div class="suggestions" id="suggestions">
-              <button type="button" class="chip">What’s the average caffeine content for drinks?</button>
-              <button type="button" class="chip">Which drinks have the most carbs?</button>
-              <button type="button" class="chip">Which food under 400 kcal has the most protein?</button>
-              <button type="button" class="chip">Compare average fat in drinks and food</button>
+              <button type="button" class="chip" data-needs="drinks">What’s the average caffeine content for drinks?</button>
+              <button type="button" class="chip" data-needs="drinks">Which drinks have the most carbs?</button>
+              <button type="button" class="chip" data-needs="food">Which food under 400 kcal has the most protein?</button>
+              <button type="button" class="chip" data-needs="both">Compare average fat in drinks and food</button>
             </div>
           </div>
           <form class="ask-bar" id="ask-form">
@@ -195,7 +195,7 @@
     <section class="view" id="view-data" hidden>
       <header class="view-head">
         <h1>Your data</h1>
-        <p>Upload your own drink or food CSV (up to {{ max_mb }} MB). Every page updates to use it.</p>
+        <p>Upload a drink CSV, a food CSV or both (up to {{ max_mb }} MB each). Every page updates to use only what you upload.</p>
       </header>
       <form class="uploads" id="upload-form">
         {% for kind in ['drinks', 'food'] %}
@@ -204,6 +204,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>
           <strong>{{ kind|title }} CSV</strong>
           <span class="file-name">Drop a file here or click to choose</span>
+          <button type="button" class="clear-file" aria-label="Clear the chosen {{ kind }} file" hidden>&times; Clear</button>
         </label>
         {% endfor %}
         <div class="upload-actions">
