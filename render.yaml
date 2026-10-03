@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: menu-nutrition-lab
+    runtime: python
+    plan: free
+    branch: backend
+    buildCommand: pip install -r requirements.txt
+    # One worker: uploads are kept in that process's memory, so every request must reach it.
+    # Threads still let several people use the app at once. AI answers can take a while, hence the timeout.
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FLASK_SECRET_KEY
+        generateValue: true

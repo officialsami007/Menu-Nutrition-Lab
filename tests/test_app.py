@@ -20,6 +20,11 @@ def test_pages_and_data_endpoints(client):
     assert client.get("/api/charts?metric=nope").status_code == 400
 
 
+def test_health_check_reports_status_and_key(client, monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "")
+    assert client.get("/api/health").get_json() == {"status": "ok", "groq_key": False}
+
+
 def test_filtering_and_csv_download(client):
     data = client.get("/api/items?dataset=food&calories_max=500&sort=calories&desc=1").get_json()
     assert data["count"] < data["total"]
