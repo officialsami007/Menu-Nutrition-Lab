@@ -27,7 +27,7 @@ python app.py                    # open http://127.0.0.1:5000
 ```
 
 Get a free Groq key at [console.groq.com/keys](https://console.groq.com/keys). No key yet? Everything except the two AI pages still works.
-Run the tests with `pytest`.
+Run the tests with `pytest`. 
 
 **Deploying:** `render.yaml` deploys the `main` branch (gunicorn, health check at `/api/health`);
 Render deploys it on every push. Set `GROQ_API_KEY` and `FLASK_SECRET_KEY` in Render's environment.
