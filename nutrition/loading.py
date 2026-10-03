@@ -1,14 +1,3 @@
-"""Part 1.1 of the brief: turn a raw (possibly messy) CSV into a clean, typed DataFrame.
-
-Loading only: no categorising or statistics here, those belong to nutrition.processing.
-
-Handles the issues found in the provided files and other common ones:
-- unknown encodings (the food file is UTF-16; others may be UTF-8 with BOM or Latin-1)
-- unknown delimiters (comma, semicolon, tab, pipe)
-- padded or inconsistent headers (" Calories", "Protein" vs "Protein (g)")
-- placeholder values ("-", "n/a", blanks) and numbers with units or thousands separators
-- rows with no nutrition data at all, and duplicate rows
-"""
 import csv
 import io
 import re

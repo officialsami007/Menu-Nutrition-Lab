@@ -1,7 +1,3 @@
-"""What the model is told: the rules it must follow and the statistics it may quote.
-
-Numbers come from nutrition.processing; this module only chooses and formats them.
-"""
 import json
 
 from ..config import METRICS

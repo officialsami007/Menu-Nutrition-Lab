@@ -1,4 +1,3 @@
-"""Descriptive statistics for one dataset and the drinks-vs-food comparison."""
 import pandas as pd
 
 from ..config import LEVEL_THRESHOLDS, LIMIT_NUTRIENTS, METRICS, REFERENCE_INTAKE

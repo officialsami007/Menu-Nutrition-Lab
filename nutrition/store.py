@@ -1,10 +1,3 @@
-"""The datasets each person is currently looking at in the web app.
-
-Everyone starts with the provided Starbucks files. An upload only replaces the data for the
-browser session that uploaded it, so one person's file never changes what another person sees.
-A file that isn't uploaded is left out rather than filled in from the sample, so uploading only
-drinks gives a drinks-only session.
-"""
 import secrets
 import threading
 from collections import OrderedDict

@@ -3,7 +3,7 @@ services:
     name: menu-nutrition-lab
     runtime: python
     plan: free
-    branch: backend
+    branch: main
     buildCommand: pip install -r requirements.txt
     # One worker: uploads are kept in that process's memory, so every request must reach it.
     # Threads still let several people use the app at once. AI answers can take a while, hence the timeout.

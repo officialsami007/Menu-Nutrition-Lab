@@ -1,4 +1,3 @@
-"""Adds the columns the analysis needs on top of a cleaned table: category, caffeine flag, ratios."""
 import re
 
 import numpy as np

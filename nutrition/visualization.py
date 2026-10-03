@@ -1,8 +1,3 @@
-"""Part 1.2 of the brief: charts comparing nutrients across items and between drinks and food.
-
-Each function takes processed DataFrames and returns a Plotly figure as a JSON-ready dict,
-which the browser draws with Plotly.js (theme colours and fonts are applied there).
-"""
 import json
 
 import pandas as pd

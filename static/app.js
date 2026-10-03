@@ -348,6 +348,13 @@ async function drawChart(el, fig) {
 }
 
 async function loadCharts() {
+  // Plotly comes from a CDN; if it was blocked, say so instead of leaving empty boxes.
+  if (!window.Plotly) {
+    $$(".chart-grid figure > div").forEach((el) => {
+      el.innerHTML = `<p class="empty">The chart library couldn't load. Check your internet connection and reload the page.</p>`;
+    });
+    return;
+  }
   const { metric, order } = state.chart;
   // Wipe the old figures first, so a failed request can never leave charts from the previous data on screen.
   $$(".chart > div").forEach((el) => el.data && Plotly.purge(el));

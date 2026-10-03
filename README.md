@@ -8,7 +8,7 @@ Load messy CSVs, explore the numbers in charts and filters, and ask questions in
 ![pandas](https://img.shields.io/badge/pandas-data-150458?logo=pandas)
 ![Plotly](https://img.shields.io/badge/Plotly-charts-3F4F75?logo=plotly)
 ![Groq](https://img.shields.io/badge/Groq-LLM-F55036)
-![Tests](https://img.shields.io/badge/tests-66%20passing-3DC791)
+![Tests](https://img.shields.io/badge/tests-67%20passing-3DC791)
 
 **Live demo: [menu-nutrition-lab.onrender.com](https://menu-nutrition-lab.onrender.com)** (free hosting, so the first visit may take ~50 s to wake up)
 
@@ -29,7 +29,7 @@ python app.py                    # open http://127.0.0.1:5000
 Get a free Groq key at [console.groq.com/keys](https://console.groq.com/keys). No key yet? Everything except the two AI pages still works.
 Run the tests with `pytest`.
 
-**Deploying:** the `backend` branch adds `render.yaml` (gunicorn, health check at `/api/health`);
+**Deploying:** `render.yaml` deploys the `main` branch (gunicorn, health check at `/api/health`);
 Render deploys it on every push. Set `GROQ_API_KEY` and `FLASK_SECRET_KEY` in Render's environment.
 
 ---
@@ -41,7 +41,7 @@ Render deploys it on every push. Set `GROQ_API_KEY` and `FLASK_SECRET_KEY` in Re
 | 📊 | **Overview** | Averages, totals, fat-to-protein ratio, drinks vs food |
 | 📈 | **Charts** | 8 interactive charts (bar, donut, sunburst, box, scatter) |
 | 🔎 | **Explore** | Filter (e.g. *drinks with caffeine*, *food under 500 kcal*), sort, download CSV |
-| ✍️ | **AI summary** | A Groq-written summary, focused on sugar, calories or protein |
+| ✍️ | **AI summary** | A structured Groq summary (key takeaways, an at-a-glance table, lighter choices) that streams in, focused on the whole menu, sugar, calories or protein & fat |
 | 💬 | **Ask the menu** | A ChatGPT-style chat: ask in plain English, answers stream in, chats are saved, and the calculation is shown |
 | 📁 | **Your data** | Upload a drinks CSV, a food CSV or both, and see exactly how each was cleaned |
 
@@ -51,8 +51,12 @@ Render deploys it on every push. Set `GROQ_API_KEY` and `FLASK_SECRET_KEY` in Re
 <td><img src="docs/screenshots/explore.png" alt="Explore page filtered to food under 500 kcal"></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/ask.png" alt="Ask the menu answering a caffeine question"></td>
+<td><img src="docs/screenshots/summary.png" alt="AI summary page with key takeaways and an at-a-glance table"></td>
+<td><img src="docs/screenshots/ask.png" alt="Ask the menu answering a caffeine question and a follow-up"></td>
+</tr>
+<tr>
 <td><img src="docs/screenshots/data.png" alt="Your data page showing the cleaning report"></td>
+<td></td>
 </tr>
 </table>
 
@@ -99,7 +103,7 @@ nutrition/
 └── store.py            each browser's uploaded data
 app.py                  Flask routes (web)
 analyze.py              the same features from the terminal
-tests/                  66 tests, one file per part
+tests/                  67 tests, one file per part
 ```
 
 ---
@@ -157,5 +161,5 @@ python analyze.py --drinks my_drinks.csv             # only your file, no compar
 
 ---
 
-- 📑 **Presentation:** [docs/Menu-Nutrition-Lab.pdf](docs/Menu-Nutrition-Lab.pdf)
+- 📑 **Presentation:** [docs/Menu_Nutrition_Lab.pdf](docs/Menu_Nutrition_Lab.pdf)
 

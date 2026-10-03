@@ -1,4 +1,3 @@
-"""Groq connection and user-facing error messages."""
 import os
 from collections.abc import Iterator
 from typing import Any

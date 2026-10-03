@@ -1,4 +1,3 @@
-"""Part 2 of the brief: a written summary of the menu's nutrition, streamed as it is generated."""
 from . import client
 from .context import SYSTEM_RULES, facts
 

@@ -1,8 +1,3 @@
-"""Exact answers to common questions (averages, rankings, look-ups) across one or both datasets.
-
-The LLM question feature calls these through tool calling, so every number it quotes is
-calculated here with pandas rather than by the model.
-"""
 from .filters import apply_filters
 from .tables import metrics_in, num, records
 

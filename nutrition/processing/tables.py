@@ -1,4 +1,3 @@
-"""Small DataFrame helpers shared by the processing modules."""
 import pandas as pd
 
 from ..config import METRICS

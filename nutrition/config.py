@@ -1,4 +1,3 @@
-"""Shared settings: file locations, the nutrient columns we understand, and model defaults."""
 import os
 from pathlib import Path
 

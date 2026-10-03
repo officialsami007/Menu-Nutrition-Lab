@@ -1,9 +1,3 @@
-"""Bonus 1 of the brief: answer free-text questions about the menu.
-
-Uses tool calling: the model asks for exact figures through four tools, each of which maps
-onto a function in nutrition.processing.queries. This module only translates between the
-model's JSON and those functions.
-"""
 import json
 
 from ..config import METRICS

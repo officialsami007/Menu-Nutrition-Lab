@@ -1,8 +1,3 @@
-"""Running notes that let a long chat keep its context without resending every message.
-
-Only the last few messages are sent to the model verbatim (the free tier limits tokens per minute).
-Older messages are folded into a short set of notes, so "the 62 drinks" from ten messages ago is still understood.
-"""
 from . import client
 
 NOTES_LIMIT = 900  # characters; keeps the notes cheap to send on every question

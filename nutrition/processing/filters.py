@@ -1,4 +1,3 @@
-"""Filtering and sorting rows, e.g. "drinks with caffeine" or "food under 500 calories"."""
 import re
 
 import pandas as pd

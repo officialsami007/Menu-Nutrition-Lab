@@ -1,8 +1,3 @@
-"""Starbucks menu nutrition analysis.
-
-The pipeline is: loading (read and clean a CSV) -> processing (enrich, then analyse) ->
-visualization / summarization. `load_menu` runs the first two steps for one file.
-"""
 from .config import DEFAULT_FILES
 from .loading import DataLoadError, load_csv, wrong_kind
 from .processing import enrich
