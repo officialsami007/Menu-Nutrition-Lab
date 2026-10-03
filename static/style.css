@@ -303,7 +303,7 @@ input:focus, select:focus { outline: none; box-shadow: var(--shadow-sm); backgro
 
 /* Summary + chat */
 .prose { padding: 28px clamp(20px, 3vw, 40px); min-height: 240px; max-width: 900px; }
-.prose h2, .prose h3 { font-size: 1.2rem; font-weight: 900; margin: 28px 0 10px; }
+.prose h1, .prose h2, .prose h3, .prose h4 { font-size: 1.4rem; font-weight: 900; letter-spacing: -0.01em; margin: 28px 0 10px; }
 .prose > :first-child { margin-top: 0; }
 .prose p, .prose li { max-width: 72ch; font-weight: 500; }
 .prose li { margin: 5px 0; }

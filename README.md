@@ -8,7 +8,7 @@ Load messy CSVs, explore the numbers in charts and filters, and ask questions in
 ![pandas](https://img.shields.io/badge/pandas-data-150458?logo=pandas)
 ![Plotly](https://img.shields.io/badge/Plotly-charts-3F4F75?logo=plotly)
 ![Groq](https://img.shields.io/badge/Groq-LLM-F55036)
-![Tests](https://img.shields.io/badge/tests-43%20passing-3DC791)
+![Tests](https://img.shields.io/badge/tests-66%20passing-3DC791)
 
 **Live demo: [menu-nutrition-lab.onrender.com](https://menu-nutrition-lab.onrender.com)** (free hosting, so the first visit may take ~50 s to wake up)
 
@@ -99,7 +99,7 @@ nutrition/
 └── store.py            each browser's uploaded data
 app.py                  Flask routes (web)
 analyze.py              the same features from the terminal
-tests/                  43 tests, one file per part
+tests/                  66 tests, one file per part
 ```
 
 ---

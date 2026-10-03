@@ -126,7 +126,9 @@ def test_summary_streams_text_built_from_the_data(http, monkeypatch):
     system, user = sent["messages"][0]["content"], sent["messages"][1]["content"]
     assert sent["stream"] is True and "sugar" in user.lower()
     # The real statistics are in the prompt: highest-carb drink and highest-calorie food item.
-    assert "Cinnamon Dolce Frappuccino® Blended Coffee: 64 g" in system
+    # Each ranked item carries all its values, so the model never has to borrow a nearby number.
+    assert "Cinnamon Dolce Frappuccino® Blended Coffee: 64g carbs (350 kcal" in system
+    assert "Protein boxes & bowls (468 kcal avg)" in system
     assert '"nutrient":"carbs (g)","drinks_avg":24.3,"food_avg":41.5,"higher":"food"' in system
     assert '"missing":["Sugar","Caffeine"]' in system
 

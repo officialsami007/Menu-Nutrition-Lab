@@ -483,15 +483,18 @@ async function writeSummary(force = false) {
   }
   btn.disabled = true;
   out.innerHTML = `<div class="skeleton"><span></span><span></span><span></span><span></span></div>`;
+  const controller = new AbortController();
+  state.summaryStream = controller;
+  let frame = null;
   try {
     const res = await fetch("/api/summary", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ focus: state.focus }),
+      signal: controller.signal,
     });
     if (!res.ok) throw new Error((await res.json()).error);
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let text = "";
-    let frame = null;
     out.classList.add("streaming");
     for (;;) {
       const { value, done } = await reader.read();
@@ -505,11 +508,30 @@ async function writeSummary(force = false) {
     state.summaries[key] = text;
     btn.textContent = "Rewrite summary";
   } catch (err) {
-    out.innerHTML = `<p class="empty">${escapeHtml(err.message)}</p>`;
+    cancelAnimationFrame(frame);
+    // Aborted because the data changed: resetSummary has already put the page back to its empty state.
+    if (!controller.signal.aborted) out.innerHTML = `<p class="empty">${escapeHtml(err.message)}</p>`;
   } finally {
-    out.classList.remove("streaming");
-    btn.disabled = false;
+    if (state.summaryStream === controller) {
+      state.summaryStream = null;
+      out.classList.remove("streaming");
+      btn.disabled = false;
+    }
   }
+}
+
+// After an upload, removal or reset every summary describes data that is gone: drop them all, stop one
+// that is still being written, and show the empty state so the page never mixes old text with new data.
+function resetSummary() {
+  state.summaryStream?.abort();
+  state.summaryStream = null;
+  state.summaries = {};
+  const out = $("#summary-output");
+  out.classList.remove("streaming");
+  out.innerHTML = emptySummary($(`#focus [data-focus="${state.focus}"]`).textContent.toLowerCase());
+  const btn = $("#summary-btn");
+  btn.textContent = "Write summary";
+  btn.disabled = false;
 }
 
 function emptySummary(focus) {
@@ -919,6 +941,7 @@ async function dataChanged(message) {
   chats.list = []; // saved chats were about the old data, so clear them and begin a fresh one
   saveChats();
   startChat();
+  resetSummary();
   state.overview = null;
   await loadData();
   state.loaded.data = state.dataVersion;
