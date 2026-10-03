@@ -57,6 +57,21 @@ def rank(frames: dict, dataset: str, metric: str, lowest: bool = False,
     return result
 
 
+def list_items(frames: dict, dataset: str, filters: dict | None = None, limit: int = 100, show: tuple = ()) -> dict:
+    """Names of the items that pass the filters, plus how many matched in total.
+
+    `show` names nutrients whose value is written after each name, for questions like "more than 30 g
+    of protein". Without it the model would have names only and could guess the numbers.
+    """
+    result = {}
+    for kind, df in select(frames, dataset).items():
+        matches = apply_filters(df, filters or {}).head(limit)
+        shown = [m for m in show if m in df]
+        labels = [name + "".join(f" ({m}: {num(row[m])})" for m in shown) for name, row in zip(matches["name"], matches.to_dict("records"))]
+        result[kind] = {"total": len(apply_filters(df, filters or {})), "items": labels}
+    return result
+
+
 def find(frames: dict, dataset: str, text: str, limit: int = 10) -> dict:
     """Full nutrition for items whose name contains `text`."""
     result = {}
@@ -64,6 +79,15 @@ def find(frames: dict, dataset: str, text: str, limit: int = 10) -> dict:
         hits = df[df["name"].str.contains(text, case=False, regex=False)].head(limit)
         result[kind] = records(hits[["name", "category"] + metrics_in(df)])
     return result
+
+
+def pool_sizes(frames: dict, dataset: str, filters: dict | None = None) -> dict:
+    """Items per dataset before and after the filters, so an answer can show its working."""
+    try:
+        return {kind: {"all": len(df), "kept": len(apply_filters(df, filters or {}))}
+                for kind, df in select(frames, dataset).items()}
+    except QueryError:
+        return {}
 
 
 def any_estimated_caffeine(frames: dict) -> bool:

@@ -165,20 +165,30 @@
     <section class="view" id="view-ask" hidden>
       <header class="view-head">
         <h1>Ask the menu</h1>
-        <p>Answers use exact figures calculated from the current data.</p>
+        <p>Chat about the menu in your own words. Answers use exact figures calculated from the current data.</p>
       </header>
-      <div class="chat" id="chat">
-        <div class="suggestions" id="suggestions">
-          <button type="button" class="chip">What’s the average caffeine content for drinks?</button>
-          <button type="button" class="chip">Which drinks have the most carbs?</button>
-          <button type="button" class="chip">Which food under 400 kcal has the most protein?</button>
-          <button type="button" class="chip">Compare average fat in drinks and food</button>
+      <div class="chat-layout">
+        <aside class="chat-side" aria-label="Your chats">
+          <button type="button" class="button" id="new-chat">New chat</button>
+          <div class="chat-items" id="chat-items"></div>
+        </aside>
+        <div class="chat-main">
+          <div class="chat" id="chat">
+            <div class="chat-messages" id="messages" role="log" aria-live="polite"></div>
+            <div class="suggestions" id="suggestions">
+              <button type="button" class="chip">What’s the average caffeine content for drinks?</button>
+              <button type="button" class="chip">Which drinks have the most carbs?</button>
+              <button type="button" class="chip">Which food under 400 kcal has the most protein?</button>
+              <button type="button" class="chip">Compare average fat in drinks and food</button>
+            </div>
+          </div>
+          <form class="ask-bar" id="ask-form">
+            <textarea id="ask-input" rows="1" maxlength="500" placeholder="Ask anything about the menu…" aria-label="Your question"></textarea>
+            <button class="button" type="submit" id="ask-send">Ask</button>
+          </form>
+          <p class="hint chat-hint">Enter to send · Shift+Enter for a new line</p>
         </div>
       </div>
-      <form class="ask-bar" id="ask-form">
-        <input id="ask-input" maxlength="500" placeholder="Ask about calories, protein, fat, carbs…" aria-label="Your question" required>
-        <button class="button" type="submit">Ask</button>
-      </form>
     </section>
 
     <!-- Your data -->

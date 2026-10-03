@@ -39,7 +39,7 @@ def _to_dict(fig: go.Figure, legend_bottom: bool = False) -> dict:
     fig.update_layout(margin=dict(l=10, r=24, t=30, b=10), legend=legend)
     fig.update_xaxes(automargin=True, title_standoff=12)
     fig.update_yaxes(automargin=True, title_standoff=12)
-    return json.loads(fig.to_json())
+    return json.loads(str(fig.to_json()))
 
 
 def averages_chart(drinks: pd.DataFrame, food: pd.DataFrame) -> dict:
@@ -59,6 +59,7 @@ def top_items_chart(frames: dict, metric: str, n: int = 10, lowest: bool = False
     """Horizontal bars of the n highest (or lowest) items for a metric across the chosen datasets."""
     parts = [df.assign(dataset=kind) for kind, df in frames.items() if metric in metrics_in(df)]
     fig = go.Figure()
+    fig.update_layout(xaxis_title=_label(metric), showlegend=False)
     if parts:
         combined = pd.concat(parts).dropna(subset=[metric])
         ranked = combined.sort_values(metric, ascending=lowest).head(n).iloc[::-1]
@@ -69,8 +70,6 @@ def top_items_chart(frames: dict, metric: str, n: int = 10, lowest: bool = False
             customdata=ranked["dataset"].str.title().tolist(),
             hovertemplate="%{y}<br>%{x} " + METRICS[metric]["unit"] + "<extra>%{customdata}</extra>",
         )
-    fig.update_layout(xaxis_title=_label(metric), showlegend=False)
-    if parts:
         fig.update_xaxes(range=[0, float(ranked[metric].max()) * 1.12 or 1])
     return _to_dict(fig)
 
@@ -115,14 +114,20 @@ def macro_split_chart(frames: dict) -> dict:
 
 def category_mix_chart(frames: dict) -> dict:
     """Sunburst: inner ring splits the menu into drinks and food, outer ring into their categories."""
-    labels, parents, values, colors, ids = [], [], [], [], []
+    ids, labels, parents, values, colors = [], [], [], [], []
+
+    def add(node_id, label, parent, value, color):
+        ids.append(node_id)
+        labels.append(label)
+        parents.append(parent)
+        values.append(int(value))
+        colors.append(color)
+
     for kind, df in frames.items():
         counts = df["category"].value_counts()
-        ids.append(kind), labels.append(kind.title()), parents.append(""), values.append(int(counts.sum()))
-        colors.append(COLORS[kind])
+        add(kind, kind.title(), "", counts.sum(), COLORS[kind])
         for j, (category, count) in enumerate(counts.items()):
-            ids.append(f"{kind}/{category}"), labels.append(category), parents.append(kind), values.append(int(count))
-            colors.append(_tint(COLORS[kind], (0.25, 0.5)[j % 2]))
+            add(f"{kind}/{category}", category, kind, count, _tint(COLORS[kind], (0.25, 0.5)[j % 2]))
     fig = go.Figure(go.Sunburst(
         ids=ids, labels=labels, parents=parents, values=values, branchvalues="total",
         marker=dict(colors=colors, line=OUTLINE), leaf=dict(opacity=1),
@@ -158,14 +163,15 @@ def scatter_chart(frames: dict, x: str = "calories", y: str = "protein") -> dict
 def category_chart(frames: dict, metric: str = "calories") -> dict:
     """Average of a metric for each menu category, both datasets on one sorted axis."""
     fig = go.Figure()
+    longest = 0.0
     for kind, df in frames.items():
         if metric in metrics_in(df) and "category" in df:
             grouped = category_means(df, metric)
+            longest = max(longest, float(grouped.max()))
             fig.add_bar(name=kind.title(), orientation="h", x=grouped.tolist(), y=grouped.index.tolist(),
                         marker=dict(color=COLORS[kind], cornerradius=4, line=OUTLINE), text=grouped.tolist(), textposition="outside", cliponaxis=False,
                         hovertemplate="%{y}: %{x} " + METRICS[metric]["unit"] + "<extra></extra>")
     fig.update_layout(xaxis_title=f"Average {_label(metric).lower()}", barmode="relative")
-    longest = max((max(t.x) for t in fig.data if len(t.x)), default=0)
     if longest:
         fig.update_xaxes(range=[0, longest * 1.12])
     return _to_dict(fig)

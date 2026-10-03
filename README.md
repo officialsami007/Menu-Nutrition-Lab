@@ -42,7 +42,7 @@ Render deploys it on every push. Set `GROQ_API_KEY` and `FLASK_SECRET_KEY` in Re
 | 📈 | **Charts** | 8 interactive charts (bar, donut, sunburst, box, scatter) |
 | 🔎 | **Explore** | Filter (e.g. *drinks with caffeine*, *food under 500 kcal*), sort, download CSV |
 | ✍️ | **AI summary** | A Groq-written summary, focused on sugar, calories or protein |
-| 💬 | **Ask the menu** | Questions in plain English, with the calculation shown |
+| 💬 | **Ask the menu** | A ChatGPT-style chat: ask in plain English, answers stream in, chats are saved, and the calculation is shown |
 | 📁 | **Your data** | Upload your own CSV and see exactly how it was cleaned |
 
 <table>
@@ -84,7 +84,8 @@ flowchart LR
 **The key idea: the LLM never does maths.** pandas calculates every number.
 
 - **Summaries:** Groq gets a small sheet of pre-computed facts and turns it into readable text.
-- **Questions:** Groq picks a tool (`aggregate`, `rank_items`, `find_items`), pandas runs it, and Groq explains the result. So *"average fat in food"* is an exact **16.4 g**, not a guess.
+- **Questions:** Groq picks a tool (`aggregate`, `rank_items`, `list_items`, `find_items`), pandas runs it, and Groq explains the result. So *"average fat in food"* is an exact **16.4 g**, not a guess.
+- **Chat memory:** the last three exchanges are sent as they were, and older messages are folded into a short running summary, so a follow-up like *"give me the names of those drinks"* still works deep into a conversation without hitting the free tier's token limit. Answers stream in word by word (with a Stop button), and chats are saved in your browser.
 
 Each layer only uses the layers before it. `tests/test_structure.py` checks this automatically: only `app.py` uses Flask, and only `summarization/client.py` talks to Groq.
 

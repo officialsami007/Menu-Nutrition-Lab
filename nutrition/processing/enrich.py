@@ -54,14 +54,14 @@ def infer_caffeine(name: str) -> bool:
 
 def caffeine_source(df: pd.DataFrame) -> str:
     """'column' when caffeine values came from the file, otherwise 'name' (estimated)."""
-    return "column" if "caffeine" in df and df["caffeine"].notna().any() else "name"
+    return "column" if "caffeine" in df and bool(df["caffeine"].notna().any()) else "name"
 
 
 def enrich(df: pd.DataFrame, kind: str) -> pd.DataFrame:
     """Add category, caffeine flag and derived ratios. Returns a new DataFrame."""
     out = df.copy()
     rules = DRINK_CATEGORIES if kind == "drinks" else FOOD_CATEGORIES
-    out["category"] = out["name"].map(lambda n: classify(n, rules))
+    out["category"] = [classify(str(name), rules) for name in out["name"].tolist()]
 
     if caffeine_source(out) == "column":
         out["caffeinated"] = out["caffeine"].fillna(0) > 0

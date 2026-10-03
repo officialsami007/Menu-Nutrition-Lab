@@ -4,6 +4,7 @@ Routes only: each one reads the request, calls the nutrition package and returns
 Run with:  python app.py   then open http://127.0.0.1:5000
 """
 import io
+import json
 import os
 import secrets
 
@@ -164,7 +165,11 @@ def summary():
 
 @app.post("/api/ask")
 def ask():
-    """Ask the menu page (Bonus 1): answer a question, with the calculations used."""
+    """Ask the menu page (Bonus 1): stream the answer as one JSON event per line.
+
+    The browser sends the chat so far (`history`) and its running notes (`memory`), which is how
+    follow-up questions keep their context.
+    """
     body = request.get_json(silent=True) or {}
     question = str(body.get("question", "")).strip()
     if not question:
@@ -173,9 +178,12 @@ def ask():
         return error("Keep questions under 500 characters.")
     frames, reports = current_data()
     try:
-        return jsonify(summarization.answer_question(question, body.get("history") or [], frames, reports))
+        events = summarization.stream_answer(question, body.get("history") or [], body.get("memory"), frames, reports)
     except summarization.LLMError as exc:
         return error(str(exc), 502)
+    lines = (json.dumps(event, ensure_ascii=False, default=str) + "\n" for event in events)
+    return Response(stream_with_context(lines), mimetype="application/x-ndjson",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 if __name__ == "__main__":

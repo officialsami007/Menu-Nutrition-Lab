@@ -11,7 +11,6 @@ const state = {
   explore: { dataset: "drinks", sort: null, desc: false },
   focus: "overview",
   summaries: {},  // "focus:version" -> markdown, so switching focus doesn't call the LLM again
-  history: [],
   view: "overview",
 };
 
@@ -482,56 +481,323 @@ function initSummary() {
   });
 }
 
-// Ask
+// Ask: a chat that streams its answers and is saved in this browser
 
-function addMessage(role, html, extraClass = "") {
+const CHATS_KEY = "menu-nutrition-lab.chats";
+const MAX_CHATS = 30;
+
+// `list` holds the saved chats, newest first. Each is { id, title, messages: [{ role, content, steps }],
+// notes, covered }: `notes` is the running summary of older messages, `covered` how many messages it includes.
+const chats = { list: [], active: null };
+let streaming = null; // the AbortController of the answer being written, if any
+
+function loadChats() {
+  try { chats.list = JSON.parse(localStorage.getItem(CHATS_KEY)) || []; } catch { chats.list = []; }
+}
+
+function saveChats() {
+  // Storage can be full or blocked (private windows); the chat still works for this visit without it.
+  try { localStorage.setItem(CHATS_KEY, JSON.stringify(chats.list.slice(0, MAX_CHATS))); } catch { /* ignore */ }
+}
+
+// A new chat is only added to the saved list once it has a message, so empty chats never pile up.
+function startChat() {
+  streaming?.abort();
+  chats.active = { id: Math.random().toString(36).slice(2), title: "New chat", messages: [], notes: "", covered: 0 };
+  renderChat();
+}
+
+function openChat(id) {
+  const chat = chats.list.find((c) => c.id === id);
+  if (!chat) return;
+  streaming?.abort();
+  chats.active = chat;
+  renderChat();
+}
+
+function deleteChat(id) {
+  chats.list = chats.list.filter((c) => c.id !== id);
+  saveChats();
+  if (chats.active?.id === id) startChat(); else renderChatList();
+}
+
+function renderChatList() {
+  $("#chat-items").innerHTML = chats.list.map((c) => `
+    <div class="chat-item${c === chats.active ? " on" : ""}">
+      <button type="button" class="chat-open" data-open="${c.id}">${escapeHtml(c.title)}</button>
+      <button type="button" class="chat-delete" data-delete="${c.id}" aria-label="Delete chat: ${escapeHtml(c.title)}">×</button>
+    </div>`).join("") || `<p class="hint">Your chats are saved here.</p>`;
+}
+
+function renderChat() {
+  $("#messages").innerHTML = "";
+  for (const m of chats.active.messages) {
+    addMessage(m.role === "user" ? "user" : "bot", m.role === "user" ? escapeHtml(m.content) : markdown(m.content) + stepsHtml(m.steps), false);
+  }
+  $("#suggestions").hidden = chats.active.messages.length > 0;
+  setSending(false);
+  renderChatList();
+  window.scrollTo(0, 0);
+}
+
+function addMessage(role, html, scroll = true) {
   const el = document.createElement("div");
-  el.className = `msg ${role} ${extraClass}`.trim();
+  el.className = `msg ${role}`;
   el.innerHTML = html;
-  $("#chat").append(el);
-  el.scrollIntoView({ behavior: "smooth", block: "end" });
+  $("#messages").append(el);
+  if (scroll) el.scrollIntoView({ behavior: "smooth", block: "end" });
   return el;
+}
+
+// One plain sentence per tool call; the raw call and result stay behind a second toggle.
+function describeStep(step) {
+  const { tool, args = {}, result = {} } = step;
+  const f = args.filters || {};
+  const bits = [];
+  if (args.dataset && args.dataset !== "both") bits.push(args.dataset);
+  if (f.category) bits.push(`category ${f.category}`);
+  if (f.name_contains) bits.push(`name contains "${f.name_contains}"`);
+  if (typeof f.caffeinated === "boolean") bits.push(f.caffeinated ? "caffeinated" : "not caffeinated");
+  for (const [key, word] of [["at_least", "at least"], ["at_most", "at most"], ["under", "under"]]) {
+    for (const [metric, value] of Object.entries(f[key] || {})) bits.push(`${metric} ${word} ${value}`);
+  }
+  const scope = bits.length ? ` (${bits.join(", ")})` : "";
+  const groups = Object.values(result).filter((v) => v && typeof v === "object");
+  const count = groups.reduce((n, g) => n + (Array.isArray(g) ? g.length : g.total ?? 0), 0);
+  if (result.error) return `Tried ${tool}${scope}: ${result.error}`;
+  if (tool === "rank_items") return `Ranked by ${args.metric}, ${args.order}${scope} → ${count} items`;
+  if (tool === "list_items") return `Listed items${scope} → ${count} matches`;
+  if (tool === "find_items") return `Looked up "${args.text}"${scope} → ${count} items`;
+  return `Calculated the ${args.stat || "mean"} of ${args.metric}${args.by_category ? " per category" : ""}${scope}`;
+}
+
+const PREVIEW_ROWS = 5;
+const TOOL_LABELS = { rank_items: "Ranking", list_items: "List", find_items: "Name lookup", aggregate: "Calculation" };
+const COLUMN_LABELS = { name: "Item", category: "Category", calories: "Calories", fat: "Fat (g)", carbs: "Carbs (g)", fiber: "Fibre (g)", protein: "Protein (g)", sugar: "Sugar (g)", sodium: "Sodium (mg)", caffeine: "Caffeine (mg)" };
+
+// What the tool was asked, as short labelled chips.
+function stepChips(step) {
+  const { args = {} } = step;
+  const f = args.filters || {};
+  const chips = [];
+  if (args.dataset) chips.push(["Menu", args.dataset === "both" ? "drinks and food" : args.dataset]);
+  if (args.metric) chips.push(["Nutrient", COLUMN_LABELS[args.metric]?.replace(/ \(.*\)/, "") ?? args.metric]);
+  if (args.stat) chips.push(["Statistic", args.stat]);
+  if (args.order) chips.push(["Order", args.order]);
+  if (args.by_category) chips.push(["Grouped", "by category"]);
+  if (args.text) chips.push(["Name contains", args.text]);
+  if (f.category) chips.push(["Category", f.category]);
+  if (f.name_contains) chips.push(["Name contains", f.name_contains]);
+  if (typeof f.caffeinated === "boolean") chips.push(["Caffeine", f.caffeinated ? "yes" : "no"]);
+  for (const [key, word] of [["at_least", "at least"], ["at_most", "at most"], ["under", "under"]]) {
+    for (const [metric, value] of Object.entries(f[key] || {})) chips.push([metric, `${word} ${value}`]);
+  }
+  return chips.map(([k, v]) => `<span class="chip"><b>${escapeHtml(k)}</b> ${escapeHtml(String(v))}</span>`).join("");
+}
+
+function cell(value) {
+  return escapeHtml(typeof value === "number" ? String(Math.round(value * 10) / 10) : String(value ?? "–"));
+}
+
+// What came back: a table of items, a list of matches, or plain numbers.
+function stepResult(step) {
+  const { result = {}, args = {} } = step;
+  if (result.error) return `<p class="step-note">${escapeHtml(result.error)}</p>`;
+  const parts = [];
+  for (const [group, data] of Object.entries(result)) {
+    if (group === "note" || data === null || typeof data !== "object") continue;
+    const title = `<h5>${escapeHtml(group[0].toUpperCase() + group.slice(1))}</h5>`;
+    if (Array.isArray(data) && data.length && typeof data[0] === "object") {
+      const columns = Object.keys(data[0]);
+      const head = columns.map((c) => `<th class="${c === args.metric ? "hit" : ""}">${escapeHtml(COLUMN_LABELS[c] ?? c)}</th>`).join("");
+      const body = data.map((row, i) =>
+        `<tr class="${i >= PREVIEW_ROWS ? "extra" : ""}">${columns.map((c) => `<td class="${c === args.metric ? "hit" : ""}">${cell(row[c])}</td>`).join("")}</tr>`).join("");
+      const toggle = data.length > PREVIEW_ROWS
+        ? `<button type="button" class="step-toggle" data-more="Show all ${data.length} rows" data-less="Show fewer">Show all ${data.length} rows</button>` : "";
+      parts.push(`${title}<div class="step-table${toggle ? " collapsed" : ""}"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${toggle}`);
+    } else if (Array.isArray(data.items)) {
+      const shown = data.items.map((n) => `<li>${escapeHtml(n)}</li>`).join("");
+      parts.push(`${title}<p class="step-note">${data.total} matching items</p><ul class="step-list">${shown}</ul>`);
+    } else if ("value" in data) {
+      parts.push(`${title}<p class="step-value">${cell(data.value)} <span class="step-note">from ${data.items_used} items</span></p>`);
+    } else {
+      const rows = Object.entries(data).map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td class="hit">${cell(v)}</td></tr>`).join("");
+      parts.push(`${title}<div class="step-table"><table><tbody>${rows}</tbody></table></div>`);
+    }
+  }
+  // The tie note is an instruction for the model, not something to show a reader.
+  if (result.note && !result.note.startsWith("Items tied")) parts.push(`<p class="step-note">${escapeHtml(result.note)}</p>`);
+  return parts.join("");
+}
+
+// The method in plain steps, using the item counts the server sent along with the result.
+function stepWorking(step) {
+  const { tool, args = {}, result = {}, counts = {} } = step;
+  const kinds = Object.keys(counts);
+  if (!kinds.length) return "";
+  const metric = COLUMN_LABELS[args.metric]?.replace(/ \(.*\)/, "").toLowerCase() ?? args.metric;
+  const chips = stepChips({ args: { filters: args.filters } });
+  const lines = [];
+  for (const kind of kinds) {
+    const { all, kept } = counts[kind];
+    const prefix = kinds.length > 1 ? `<b>${escapeHtml(kind)}:</b> ` : "";
+    const rows = Array.isArray(result[kind]) ? result[kind].length : null;
+    lines.push(`${prefix}Started with all <b>${all}</b> ${escapeHtml(kind)} items.`);
+    if (chips) lines.push(`${prefix}Kept only the items that match the filters, leaving <b>${kept}</b>.`);
+    if (tool === "rank_items") {
+      lines.push(`${prefix}Sorted them by ${escapeHtml(metric)}, ${args.order === "lowest" ? "lowest" : "highest"} first.`);
+      lines.push(`${prefix}Took the top ${args.limit || 5}, plus any item tied with the last one: <b>${rows ?? 0}</b> rows.`);
+    } else if (tool === "list_items") {
+      lines.push(`${prefix}Counted the matches: <b>${result[kind]?.total ?? 0}</b> items.`);
+    } else if (tool === "find_items") {
+      lines.push(`${prefix}Searched the names for "${escapeHtml(args.text ?? "")}": <b>${rows ?? 0}</b> found.`);
+    } else if (tool === "aggregate") {
+      const used = result[kind]?.items_used;
+      lines.push(`${prefix}Took the ${escapeHtml(args.stat || "mean")} of ${escapeHtml(metric)}${args.by_category ? " in each category" : used != null ? ` over the ${used} items that have a value: <b>${cell(result[kind].value)}</b>` : ""}.`);
+    }
+  }
+  return `<h5>Working</h5><ol class="step-working">${lines.map((l) => `<li>${l}</li>`).join("")}</ol>`;
 }
 
 function stepsHtml(steps) {
   if (!steps?.length) return "";
-  const lines = steps.map((s) => `${s.tool}(${JSON.stringify(s.args)})\n→ ${JSON.stringify(s.result)}`).join("\n\n");
-  return `<details><summary>How this was calculated</summary><pre>${escapeHtml(lines)}</pre></details>`;
+  const cards = steps.map((s, i) => `<section class="step">
+    <header><span class="step-no">${i + 1}</span><b>${TOOL_LABELS[s.tool] ?? s.tool}</b><span class="step-sum">${escapeHtml(describeStep(s))}</span></header>
+    <div class="chips">${stepChips(s)}</div>${stepWorking(s)}${stepResult(s)}</section>`).join("");
+  return `<details class="how"><summary>How this was calculated</summary>${cards}</details>`;
 }
 
-async function ask(question) {
-  $("#suggestions").hidden = true;
-  addMessage("user", escapeHtml(question));
-  const pending = addMessage("bot", `<div class="thinking"><i></i><i></i><i></i></div>`);
-  const input = $("#ask-input");
-  input.disabled = true;
-  try {
-    const data = await api("/api/ask", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, history: state.history }),
-    });
-    pending.innerHTML = markdown(data.answer) + stepsHtml(data.steps);
-    state.history.push({ role: "user", content: question }, { role: "assistant", content: data.answer });
-  } catch (err) {
-    pending.classList.add("error");
-    pending.textContent = err.message;
-  } finally {
-    input.disabled = false;
-    input.focus();
-    pending.scrollIntoView({ behavior: "smooth", block: "end" });
+// While an answer is written the Ask button becomes Stop.
+function setSending(busy) {
+  const button = $("#ask-send");
+  button.textContent = busy ? "Stop" : "Ask";
+  button.classList.toggle("ghost", busy);
+}
+
+// The server streams one JSON event per line. A network chunk can end mid-line, so the last piece is kept for the next one.
+async function readEvents(res, onEvent) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    lines.filter(Boolean).forEach((line) => onEvent(JSON.parse(line)));
   }
 }
 
+async function ask(question) {
+  if (streaming) return;
+  const chat = chats.active;
+  $("#suggestions").hidden = true;
+  addMessage("user", escapeHtml(question));
+  const bubble = addMessage("bot", `<div class="thinking"><i></i><i></i><i></i></div>`);
+  const controller = new AbortController();
+  streaming = controller;
+  setSending(true);
+
+  let text = "";
+  const steps = [];
+  let frame = null;
+  const draw = () => {
+    frame = null;
+    // Follow the answer down the page only if the reader hasn't scrolled up to read something earlier.
+    const stick = document.documentElement.scrollHeight - window.scrollY - window.innerHeight < 180;
+    bubble.innerHTML = text ? markdown(text) : `<div class="thinking"><i></i><i></i><i></i></div>`;
+    bubble.classList.toggle("streaming", Boolean(text)); // the blinking cursor belongs to written text, not the thinking dots
+    if (stick) window.scrollTo(0, document.documentElement.scrollHeight);
+  };
+
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+      body: JSON.stringify({
+        question,
+        history: chat.messages.map(({ role, content }) => ({ role, content })),
+        memory: { notes: chat.notes, covered: chat.covered },
+      }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    await readEvents(res, (event) => {
+      if (event.type === "text") text += event.text;
+      else if (event.type === "reset") text = ""; // the model spoke, then asked for a tool: start the answer over
+      else if (event.type === "step") steps.push(event);
+      else if (event.type === "memory") { chat.notes = event.notes; chat.covered = event.covered; }
+      else if (event.type === "error") throw new Error(event.message);
+      frame ??= requestAnimationFrame(draw);
+    });
+  } catch (err) {
+    if (frame) cancelAnimationFrame(frame);
+    bubble.classList.remove("streaming");
+    if (err.name !== "AbortError") {
+      bubble.classList.add("error");
+      bubble.textContent = err.message;
+      $("#ask-input").value = question; // so the question can be sent again with one key press
+    } else if (!text) {
+      bubble.textContent = "Stopped.";
+    }
+    if (err.name !== "AbortError" || !text) {
+      streaming = null; setSending(false);
+      return;
+    }
+  }
+
+  // Done, or stopped part-way with some text: keep the exchange so the next question has the context.
+  if (frame) cancelAnimationFrame(frame);
+  bubble.classList.remove("streaming");
+  bubble.innerHTML = markdown(text) + stepsHtml(steps);
+  chat.messages.push({ role: "user", content: question }, { role: "assistant", content: text, steps });
+  if (chat.title === "New chat") chat.title = question.slice(0, 48);
+  if (!chats.list.includes(chat)) chats.list.unshift(chat);
+  saveChats();
+  renderChatList();
+  streaming = null;
+  setSending(false);
+  $("#ask-input").focus();
+}
+
 function initAsk() {
-  $("#ask-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const input = $("#ask-input");
-    const q = input.value.trim();
-    if (!q) return;
-    input.value = "";
-    ask(q);
+  // "Show all / Show fewer" under a result table.
+  $("#messages").addEventListener("click", (e) => {
+    const button = e.target.closest(".step-toggle");
+    if (!button) return;
+    const table = button.previousElementSibling;
+    const collapsed = table.classList.toggle("collapsed");
+    button.textContent = collapsed ? button.dataset.more : button.dataset.less;
   });
+  const input = $("#ask-input");
+  const form = $("#ask-form");
+  loadChats();
+  startChat();
+
+  // The box grows with what is typed (up to a limit), like a messaging app.
+  const grow = () => { input.style.height = "auto"; input.style.height = `${Math.min(input.scrollHeight, 160)}px`; };
+  input.addEventListener("input", grow);
+  // Enter sends and Shift+Enter adds a line. Enter is ignored while an input method is composing text (IME).
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); }
+  });
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (streaming) { streaming.abort(); return; }
+    const question = input.value.trim();
+    if (!question) return;
+    input.value = "";
+    grow();
+    ask(question);
+  });
+
   $$("#suggestions .chip").forEach((c) => c.addEventListener("click", () => ask(c.textContent)));
+  $("#new-chat").addEventListener("click", startChat);
+  $("#chat-items").addEventListener("click", (e) => {
+    const open = e.target.closest("[data-open]");
+    const del = e.target.closest("[data-delete]");
+    if (open) openChat(open.dataset.open);
+    if (del) deleteChat(del.dataset.delete);
+  });
 }
 
 // Upload + data quality
@@ -564,7 +830,7 @@ async function loadData() {
 async function dataChanged(message) {
   state.dataVersion += 1;
   state.loaded = {};
-  state.history = [];
+  startChat(); // saved chats were about the old data, so begin a fresh one
   state.overview = null;
   await loadData();
   state.loaded.data = state.dataVersion;

@@ -92,3 +92,15 @@ def test_query_rank_keeps_ties(menu):
 def test_query_rank_with_filters(menu):
     rows = queries.rank(menu, "food", "protein", limit=1, filters={"calories_max": 400})["food"]
     assert rows[0]["name"] == "Smoked Turkey Protein Box"
+
+
+def test_query_list_items_gives_every_name_and_the_total(menu):
+    result = queries.list_items(menu, "drinks", {"caffeine": "yes"})["drinks"]
+    assert result["total"] == 62 and len(result["items"]) == 62 and "Iced Coffee" in result["items"]
+    capped = queries.list_items(menu, "drinks", {"caffeine": "yes"}, limit=5)["drinks"]
+    assert capped["total"] == 62 and len(capped["items"]) == 5
+
+
+def test_query_list_items_can_show_the_values_it_was_filtered_on(menu):
+    items = queries.list_items(menu, "food", {"protein_min": 32}, show=("protein",))["food"]["items"]
+    assert sorted(items) == ["Roasted Turkey & Dill Havarti Sandwich (protein: 32.0)", "Turkey Pesto Panini (protein: 34.0)"]

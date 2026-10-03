@@ -13,7 +13,7 @@ FOCUS_PROMPTS = {
 def stream_summary(frames: dict, reports: dict, focus: str = "overview"):
     """Return a generator of text chunks. Raises LLMError before streaming if setup fails."""
     groq_client = client.get_client()
-    messages = [
+    messages: list[client.Message] = [
         {"role": "system", "content": SYSTEM_RULES + "\n\nDATA:\n" + facts(frames, reports)},
         {"role": "user", "content": (
             f"{FOCUS_PROMPTS.get(focus, FOCUS_PROMPTS['overview'])}\n"
